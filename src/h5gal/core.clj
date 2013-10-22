@@ -3,6 +3,12 @@
 
 (use '[clojure.java.io])
 (use 'clj-time.core)
+(import 'java.util.Locale)
+(import '(java.text DateFormat))
+
+(defn formatLocalDate [localDate]
+  (. (. DateFormat getDateInstance (. DateFormat MEDIUM ) (Locale. "en-gb")) format (. localDate toDate) )
+  )
 
 (defn isLeafDirectory [path]
   (and
@@ -20,9 +26,19 @@
 (defn extractPathInfo [relativePath]
   (let [matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" relativePath)]
     (if matches
-      (if (> (count (matches 4)) 0)
-        {:short-description (matches 4) :date (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3)))}
-        {:date (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3)))}
+      (let [
+            localDate (local-date (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3)))
+            dateTime (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3)))
+            ]
+        (conj {
+               :dateInst localDate
+               :dateComm (clojure.string/join "/" [(matches 1) (matches 2) (matches 3)])
+               }
+              (if (> (count (matches 4)) 0)
+                {:title (matches 4)}
+                {:title (formatLocalDate localDate)}
+                )
+              )
         )
       nil
       )
@@ -36,7 +52,10 @@
   (map #(subs (.getAbsolutePath %) (+ (count (.getAbsolutePath (file path))) 1)) (walk path ))
   )
 
-(relativePaths "data")
+
+(remove nil? (map extractPathInfo (relativePaths "data")))
+
+
 
 
 
