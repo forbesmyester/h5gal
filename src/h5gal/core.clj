@@ -5,6 +5,9 @@
 (use 'clj-time.core)
 (import 'java.util.Locale)
 (import '(java.text DateFormat))
+(require 'digest)
+
+(defn dataDir "data")
 
 (defn formatLocalDate [localDate]
   (. (. DateFormat getDateInstance (. DateFormat MEDIUM ) (Locale. "en-gb")) format (. localDate toDate) )
@@ -23,7 +26,7 @@
               ))
   )
 
-(defn extractPathInfo [relativePath]
+(defn extractPathInfo [relativePath fullPath]
   (let [matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" relativePath)]
     (if matches
       (let [
@@ -33,9 +36,11 @@
         (conj {
                :dateInst localDate
                :dateComm (clojure.string/join "/" [(matches 1) (matches 2) (matches 3)])
+               :dateDisp (formatLocalDate localDate)
+               :id (digest/md5 relativePath)
                }
               (if (> (count (matches 4)) 0)
-                {:title (matches 4)}
+                {:title (matches 4)  :subtitle (formatLocalDate localDate)}
                 {:title (formatLocalDate localDate)}
                 )
               )
@@ -53,9 +58,7 @@
   )
 
 
-(remove nil? (map extractPathInfo (relativePaths "data")))
-
-
+(remove nil? (map extractPathInfo (relativePaths dataDir)))
 
 
 

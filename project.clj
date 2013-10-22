@@ -6,5 +6,6 @@
   :dependencies [
                  [org.clojure/clojure "1.5.1"]
                  [clj-time "0.6.0"]
+                 [digest "1.4.3"]
                  ]
   :main h5gal.core)
