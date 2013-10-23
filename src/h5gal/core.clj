@@ -7,7 +7,7 @@
 (import '(java.text DateFormat))
 (require 'digest)
 
-(defn dataDir "data")
+(def dataDir "data")
 
 (defn formatLocalDate [localDate]
   (. (. DateFormat getDateInstance (. DateFormat MEDIUM ) (Locale. "en-gb")) format (. localDate toDate) )
@@ -26,39 +26,38 @@
               ))
   )
 
-(defn extractPathInfo [relativePath fullPath]
-  (let [matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" relativePath)]
+(defn walked [baseDir leafDir]
+  {:b baseDir :l leafDir}
+  )
+
+(defn extractPathInfo [baseDir leafDir]
+  (let
+    [ relativePath (subs (.getAbsolutePath leafDir) (+ (count (.getAbsolutePath baseDir)) 1))
+      matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" relativePath)
+      localDate (if matches (local-date (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))) nil)
+      dateTime (if matches (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))))
+      ]
     (if matches
-      (let [
-            localDate (local-date (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3)))
-            dateTime (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3)))
-            ]
-        (conj {
-               :dateInst localDate
-               :dateComm (clojure.string/join "/" [(matches 1) (matches 2) (matches 3)])
-               :dateDisp (formatLocalDate localDate)
-               :id (digest/md5 relativePath)
-               }
-              (if (> (count (matches 4)) 0)
-                {:title (matches 4)  :subtitle (formatLocalDate localDate)}
-                {:title (formatLocalDate localDate)}
-                )
+      (conj {
+             :dateInst localDate
+             :dateComm (clojure.string/join "-" [(matches 1) (matches 2) (matches 3)])
+             :dateDisp (formatLocalDate localDate)
+             :id (digest/md5 relativePath)
+             }
+            (if (> (count (matches 4)) 0)
+              {:title (matches 4)  :subtitle (formatLocalDate localDate)}
+              {:title (formatLocalDate localDate)}
               )
-        )
+            )
       nil
       )
     )
   )
 
-(extractPathInfo "2012/11/25/Christmas")
-(extractPathInfo "2012/11/25")
+(extractPathInfo (file "data") (file "data/2012/11/25/Christmas"))
+(extractPathInfo (file "data") (file "data/2012/11/25"))
 
-(defn relativePaths [path]
-  (map #(subs (.getAbsolutePath %) (+ (count (.getAbsolutePath (file path))) 1)) (walk path ))
-  )
-
-
-(remove nil? (map extractPathInfo (relativePaths dataDir)))
+(remove nil? (map (partial extractPathInfo (file dataDir)) (walk dataDir)))
 
 
 
