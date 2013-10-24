@@ -13,6 +13,15 @@
   (. (. DateFormat getDateInstance (. DateFormat MEDIUM ) (Locale. "en-gb")) format (. localDate toDate) )
   )
 
+(def imageConversions [
+                   { :extensions ["jpeg", "jpg"] :conversion nil }
+                   { :extensions ["bmp"] :conversion nil }
+                   ])
+
+(defn imageFormats []
+  (flatten (map (fn [{ext :extensions}] ext) imageConversions))
+  )
+
 (defn isLeafDirectory [path]
   (and
    (.isDirectory path)
