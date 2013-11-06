@@ -109,8 +109,6 @@
 
 (remove nil? (map (partial extractPathInfo (file dataDir)) (walk dataDir)))
 
-
-
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
