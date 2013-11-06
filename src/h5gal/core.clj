@@ -1,41 +1,46 @@
 (ns h5gal.core
   (:gen-class))
 
-;;;; Gallery Generator built to learn Clojure
+;;;; # Gallery Generator built to learn Clojure
+;;;;
+;;;; ## Where To Put Your Images
+;;;;
+;;;; Pictures should be stored beneath a git-annex routeconforming to the
+;;;; following directory structure.
+;;;;
+;;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425.jpg
+;;;;
+;;;; The first three levels of directory outside of the <datadir> are the date
+;;;; in reverse order. The next "Tokyo Trip" is the name of the specific event.
+;;;; These combined should give enough information to supply a title and a date
+;;;; of a set of pictures, which might be enough for lots of people.
+;;;;
+;;;; ## Describing What The Set Of Pictures Is About
+;;;;
+;;;; Should you wish to describe what the set if pictures is about in detail you
+;;;; can include a README within the event directory. It should be formatted
+;;;; using Markdown.
+;;;;
+;;;;     <datadir>/2011/04/28/Tokyo Trip/README.md
+;;;;
+;;;; ## Describing A Specific Picture
+;;;;
+;;;; If you want to add a description of what is in the individual picture
+;;;; create a markdown document with the same name but with a md (markdown)
+;;;; extension
+;;;;
+;;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425.md
+;;;;
+;;;; ## Photo Editing
+;;;;
+;;;; It may be that you want to keep an originals of all images for posterity
+;;;; but also want to touch up and experiment with photo editing. To do this
+;;;; append a .edited to the end of the name component of the filename as shown
+;;;; below.
+;;;;
+;;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/Picture3425.edited.jpg
+;;;;
 
-;;; Directory strucutre example:
-;;;
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425.jpg
-;;;
-;;; The location of photo's, the first three levels of directory outside of the
-;;; <datadir> are teh date in reverse order. The next "Tokyo Trip" is the name
-;;; of the specific event. These combined should give enough information to
-;;; supply a title and a date of a set of pictures, which might be enough for
-;;; lots of people.
-;;;
-;;;     <datadir>/2011/04/28/Tokyo Trip/README.md
-;;;
-;;; Should you wish to describe the event in detail you can include a README
-;;; within the event directory. It should be formatted using Markdown.
-;;;
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/README.md
-;;;
-;;; If you want to add a description of what is in the individual picture
-;;; create a directory of the same name, but without the extension and add a
-;;; README file there.
-;;;
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/_default.jpg
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/_thumb_small.jpg
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/_thumb_medium.jpg
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/_thumb_large.jpg
-;;;
-;;; NOTE: These files will be created automatically for displaying within the
-;;; browser.
-;;;
-;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/override.jpg
-;;;
-;;; But if it seems a file called override it will show this within the browser
-;;; instead as well as use it for thumbnails.
 
 (use '[clojure.java.io])
 (use 'clj-time.core)
