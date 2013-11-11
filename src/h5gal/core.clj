@@ -47,6 +47,7 @@
 (import 'java.util.Locale)
 (import '(java.text DateFormat))
 (require 'digest)
+(use '[clojure.set])
 
 (def dataDir "data")
 
@@ -63,6 +64,10 @@
   (flatten (map (fn [{ext :extensions}] ext) imageConversions))
   )
 
+(imageFormats)
+
+()
+
 (defn isLeafDirectory [path]
   (and
    (.isDirectory path)
@@ -76,24 +81,50 @@
               ))
   )
 
-(defn walked [baseDir leafDir]
-  {:b baseDir :l leafDir}
+(defn isImage [filename]
+  #(some (re-find #"[^\.]+$" %) (imageFormats))
+  )
+
+(defn parseDirectory [baseDir leafDir]
+  (let [
+        readmeFilename (str leafDir "/" "README.md")
+        hasReadme (.exists (as-file readmeFilename))
+        isImage (fn isImage [img] (> (count (filter #(= (re-find #"[^\.]+$" img) %) (imageFormats))) 0))
+        ]
+    (conj
+     {
+      :files (filter isImage (map #(.getName %) (file-seq leafDir)))
+      }
+     (if hasReadme
+       {:description (slurp readmeFilename)}
+       )
+     )
+    )
+  )
+
+(parseDirectory (file "data") (file "data/2011/05/09/Going Fishing")
+                )
+
+(defn getRelativePath [baseDir leafDir]
+  (subs (.getAbsolutePath leafDir) (+ (count (.getAbsolutePath baseDir)) 1))
   )
 
 (defn extractPathInfo [baseDir leafDir]
   (let
-    [ relativePath (subs (.getAbsolutePath leafDir) (+ (count (.getAbsolutePath baseDir)) 1))
+    [ relativePath (getRelativePath baseDir leafDir)
       matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" relativePath)
       localDate (if matches (local-date (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))) nil)
-      dateTime (if matches (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))))
+      dateTime (if matches (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))) nil)
       ]
     (if matches
       (conj {
+             :albumPath relativePath
              :dateInst localDate
              :dateComm (clojure.string/join "-" [(matches 1) (matches 2) (matches 3)])
              :dateDisp (formatLocalDate localDate)
              :id (digest/md5 relativePath)
              }
+            (parseDirectory baseDir leafDir)
             (if (> (count (matches 4)) 0)
               {:title (matches 4)  :subtitle (formatLocalDate localDate)}
               {:title (formatLocalDate localDate)}
@@ -104,8 +135,13 @@
     )
   )
 
-(extractPathInfo (file "data") (file "data/2012/11/25/Christmas"))
-(extractPathInfo (file "data") (file "data/2012/11/25"))
+(def epi (partial extractPathInfo (file dataDir)))
+(epi (file "data/2011/06/22/Mountain Biking"))
+(epi (file "data/2011/06/22/Drinking Beer"))
+(epi (file "data/2011/05/09/Going Fishing"))
+(epi (file "data/2011/02"))
+
+(walk dataDir)
 
 (remove nil? (map (partial extractPathInfo (file dataDir)) (walk dataDir)))
 
