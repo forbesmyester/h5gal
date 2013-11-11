@@ -3,6 +3,11 @@ mkdir -p  'data/2011/05/09/Going Fishing'
 mkdir -p  'data/2011/06/22/Drinking Beer'
 mkdir -p  'data/2011/06/22/Mountain Biking'
 mkdir -p  'data/2011/02'
+
+echo '# Fishing Trip' > 'data/2011/05/09/Going Fishing/README.md'
+echo '' >> 'data/2011/05/09/Going Fishing/README.md'
+echo 'This is the fishing trip before we went (../Drinking Beer/)[Drinking Beer].' >> 'data/2011/05/09/Going Fishing/README.md'
+
 cp elephant_icon.jpg 'data/2011/05/09/Going Fishing/elephant-icon0.jpg'
 echo 0 >> 'data/2011/05/09/Going Fishing/elephant-icon0.jpg'
 cp elephant_icon.jpg 'data/2011/05/09/Going Fishing/elephant-icon1.jpg'
