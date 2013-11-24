@@ -38,7 +38,7 @@
 ;;;; append a .edited to the end of the name component of the filename as shown
 ;;;; below.
 ;;;;
-;;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425/Picture3425.edited.jpg
+;;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425.edited.jpg
 ;;;;
 
 
@@ -64,10 +64,6 @@
   (flatten (map (fn [{ext :extensions}] ext) imageConversions))
   )
 
-(imageFormats)
-
-()
-
 (defn isLeafDirectory [path]
   (and
    (.isDirectory path)
@@ -81,22 +77,54 @@
               ))
   )
 
+(defn nonEditedVersions [filenames]
+  (let [
+        orImgFormats (clojure.string/join "|" (into [] (imageFormats)))
+        reStr (str "(.*\\.)(edited\\.)(" orImgFormats ")$")
+        sequ (keep #(re-matches (re-pattern reStr) %1) filenames)
+        ]
+    (map #(str (nth % 1) (nth % 3)) sequ)
+    )
+ )
+
+(defn removeNonEditedVersions [filenames]
+  (let [
+        edited (vec (nonEditedVersions filenames))
+        ]
+    (filter #(= -1 (.indexOf edited %1)) filenames)
+    )
+  )
+
 (defn isImage [filename]
   #(some (re-find #"[^\.]+$" %) (imageFormats))
   )
 
+(defn createFileRecord [fullDirPath filename]
+  (let [ fileReadme (clojure.string/replace filename #"(edited\.)?([^\.]+)$" "md") ]
+    (conj { :filename filename }
+          (if (.exists (as-file (str fullDirPath "/" fileReadme)))
+            { :readme fileReadme }
+            )
+          )
+    )
+  )
+
 (defn parseDirectory [baseDir leafDir]
   (let [
-        readmeFilename (str leafDir "/" "README.md")
-        hasReadme (.exists (as-file readmeFilename))
+        inDirReadmeFilename "README.md"
+        readmeFilename (str leafDir "/" inDirReadmeFilename)
         isImage (fn isImage [img] (> (count (filter #(= (re-find #"[^\.]+$" img) %) (imageFormats))) 0))
+        filesWithin (removeNonEditedVersions (filter isImage (map #(.getName %) (file-seq leafDir))))
         ]
     (conj
      {
-      :files (filter isImage (map #(.getName %) (file-seq leafDir)))
+      :files (map
+              (partial createFileRecord leafDir)
+              filesWithin
+              )
       }
-     (if hasReadme
-       {:description (slurp readmeFilename)}
+     (if (.exists (as-file readmeFilename))
+       {:readme inDirReadmeFilename}
        )
      )
     )
