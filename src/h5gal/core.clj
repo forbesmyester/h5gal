@@ -99,10 +99,31 @@
   #(some (re-find #"[^\.]+$" %) (imageFormats))
   )
 
-(defn createFileRecord [fullDirPath filename]
-  (let [ fileReadme (clojure.string/replace filename #"(edited\.)?([^\.]+)$" "md") ]
-    (conj { :filename filename }
-          (if (.exists (as-file (str fullDirPath "/" fileReadme)))
+(defn generateThumbnailFilename [thumbOrDisplay size fullDirPath filename modifiedTimestamp]
+  (str fullDirPath "/" filename "/" modifiedTimestamp "/" thumbOrDisplay "/" size ".jpg")
+)
+
+(defn createFileRecord [baseDir leafDir filename]
+  (let [
+        fileReadme (clojure.string/replace filename #"(edited\.)?([^\.]+)$" "md")
+        modifiedTimestamp (.lastModified (as-file (str baseDir "/" leafDir "/" filename)))
+        ]
+    (conj {
+           :filename filename
+           :scaledVersions {
+                            :thumbs {
+                                     :small (generateThumbnailFilename "thumb" "small" leafDir filename modifiedTimestamp)
+                                     :medium (generateThumbnailFilename "thumb" "medium" leafDir filename modifiedTimestamp)
+                                     :large (generateThumbnailFilename "thumb" "large" leafDir filename modifiedTimestamp)
+                                     }
+                            :display {
+                                     :small (generateThumbnailFilename "display" "small" leafDir filename modifiedTimestamp)
+                                     :medium (generateThumbnailFilename "display" "medium" leafDir filename modifiedTimestamp)
+                                     :large (generateThumbnailFilename "display" "large" leafDir filename modifiedTimestamp)
+                                      }
+                            }
+           }
+          (if (.exists (as-file (str baseDir "/" leafDir "/" filename)))
             { :readme fileReadme }
             )
           )
@@ -112,14 +133,14 @@
 (defn parseDirectory [baseDir leafDir]
   (let [
         inDirReadmeFilename "README.md"
-        readmeFilename (str leafDir "/" inDirReadmeFilename)
+        readmeFilename (str baseDir "/" leafDir "/" inDirReadmeFilename)
         isImage (fn isImage [img] (> (count (filter #(= (re-find #"[^\.]+$" img) %) (imageFormats))) 0))
-        filesWithin (removeNonEditedVersions (filter isImage (map #(.getName %) (file-seq leafDir))))
+        filesWithin (removeNonEditedVersions (filter isImage (map #(.getName %) (file-seq (as-file (str baseDir "/" leafDir))))))
         ]
     (conj
      {
       :files (map
-              (partial createFileRecord leafDir)
+              (partial createFileRecord baseDir leafDir)
               filesWithin
               )
       }
@@ -130,8 +151,7 @@
     )
   )
 
-(parseDirectory (file "data") (file "data/2011/05/09/Going Fishing")
-                )
+(parseDirectory "data" "2011/05/09/Going Fishing")
 
 (defn getRelativePath [baseDir leafDir]
   (subs (.getAbsolutePath leafDir) (+ (count (.getAbsolutePath baseDir)) 1))
@@ -139,18 +159,17 @@
 
 (defn extractPathInfo [baseDir leafDir]
   (let
-    [ relativePath (getRelativePath baseDir leafDir)
-      matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" relativePath)
+    [ matches (re-matches #"^([0-9]{4})\/([0-9]{2})\/([0-9]{2})\/?(.*)?" leafDir)
       localDate (if matches (local-date (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))) nil)
       dateTime (if matches (date-time (Integer. (matches 1)) (Integer. (matches 2)) (Integer. (matches 3))) nil)
       ]
     (if matches
       (conj {
-             :albumPath relativePath
+             :albumPath leafDir
              :dateInst localDate
              :dateComm (clojure.string/join "-" [(matches 1) (matches 2) (matches 3)])
              :dateDisp (formatLocalDate localDate)
-             :id (digest/md5 relativePath)
+             :id (digest/md5 leafDir)
              }
             (parseDirectory baseDir leafDir)
             (if (> (count (matches 4)) 0)
@@ -163,15 +182,16 @@
     )
   )
 
-(def epi (partial extractPathInfo (file dataDir)))
-(epi (file "data/2011/06/22/Mountain Biking"))
-(epi (file "data/2011/06/22/Drinking Beer"))
-(epi (file "data/2011/05/09/Going Fishing"))
-(epi (file "data/2011/02"))
+(extractPathInfo "data" "2011/05/09/Going Fishing")
 
 (walk dataDir)
 
-(remove nil? (map (partial extractPathInfo (file dataDir)) (walk dataDir)))
+(map (partial getRelativePath (file dataDir)) (walk dataDir))
+
+(remove nil? (map
+              (partial extractPathInfo dataDir)
+              (map (partial getRelativePath (file dataDir)) (walk dataDir)))
+        )
 
 (defn -main
   "I don't do a whole lot ... yet."
