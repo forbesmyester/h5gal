@@ -1,5 +1,30 @@
 (ns h5gal.core
-  (:gen-class))
+  (:gen-class)
+  (:import  (javax.imageio ImageIO))
+  (:require [clojure.tools.cli :as cli])
+  (:require [clojure.java.io :refer [file as-file]])
+  (:require [clj-time.core :refer [date-time local-date]])
+  (:require [mikera.image.core :refer [scale-image]])
+  (:import (java.text.DateFormat))
+  (:require [clojure.data.json :as json])
+  (:import (java.util.Locale))
+  (:require digest)
+  )
+
+
+;  (:use [clojure.contrib.command-line])
+;
+;  (:use 'clj-time.core)
+;
+;  (:import '(java.text DateFormat))
+;
+;  (:use '[clojure.set])
+;  (:use 'mikera.image.core)
+;  (:use 'mikera.image.colours)
+;  (:import [java.awt.image BufferedImage BufferedImageOp])
+;  (:import [java.io File])
+;
+;  (:use '[clojure.java.io :only [as-file]])
 
 ;;;; # Gallery Generator built to learn Clojure
 ;;;;
@@ -41,18 +66,27 @@
 ;;;;     <datadir>/2011/04/28/Tokyo Trip/Picture3425.edited.jpg
 ;;;;
 
+(defn loadImg [filename]
+  (javax.imageio.ImageIO/read (file filename))
+  )
 
-(use '[clojure.java.io])
-(use 'clj-time.core)
-(import 'java.util.Locale)
-(import '(java.text DateFormat))
-(require 'digest)
-(use '[clojure.set])
+(def imgSizes {
+               :thumb {
+                        :small [64 48]
+                        :medium [128 96]
+                        :large [320 240]
+                        }
+               :display {
+                         :small [640 480]
+                         :medium [1280 720]
+                         :large [1920 1200]
+                         }
+               }
+  )
 
-(def dataDir "data")
 
 (defn formatLocalDate [localDate]
-  (. (. DateFormat getDateInstance (. DateFormat MEDIUM ) (Locale. "en-gb")) format (. localDate toDate) )
+  (. (. java.text.DateFormat getDateInstance (. java.text.DateFormat MEDIUM ) (java.util.Locale. "en-gb")) format (. localDate toDate) )
   )
 
 (def imageConversions [
@@ -100,7 +134,7 @@
   )
 
 (defn generateThumbnailFilename [thumbOrDisplay size fullDirPath filename modifiedTimestamp]
-  (str fullDirPath "/" filename "/" modifiedTimestamp "/" thumbOrDisplay "/" size ".jpg")
+  (str (digest/md5 (str fullDirPath "/" filename "/" modifiedTimestamp "/" thumbOrDisplay "/" size)) ".jpg")
 )
 
 (defn createFileRecord [baseDir leafDir filename]
@@ -110,21 +144,10 @@
         ]
     (conj {
            :filename filename
-           :scaledVersions {
-                            :thumbs {
-                                     :small (generateThumbnailFilename "thumb" "small" leafDir filename modifiedTimestamp)
-                                     :medium (generateThumbnailFilename "thumb" "medium" leafDir filename modifiedTimestamp)
-                                     :large (generateThumbnailFilename "thumb" "large" leafDir filename modifiedTimestamp)
-                                     }
-                            :display {
-                                     :small (generateThumbnailFilename "display" "small" leafDir filename modifiedTimestamp)
-                                     :medium (generateThumbnailFilename "display" "medium" leafDir filename modifiedTimestamp)
-                                     :large (generateThumbnailFilename "display" "large" leafDir filename modifiedTimestamp)
-                                      }
-                            }
+           :modifiedTimestamp modifiedTimestamp
            }
-          (if (.exists (as-file (str baseDir "/" leafDir "/" filename)))
-            { :readme fileReadme }
+          (if (.exists (as-file (str baseDir "/" leafDir "/" fileReadme)))
+            { :readme fileReadme}
             )
           )
     )
@@ -151,8 +174,6 @@
     )
   )
 
-(parseDirectory "data" "2011/05/09/Going Fishing")
-
 (defn getRelativePath [baseDir leafDir]
   (subs (.getAbsolutePath leafDir) (+ (count (.getAbsolutePath baseDir)) 1))
   )
@@ -166,7 +187,7 @@
     (if matches
       (conj {
              :albumPath leafDir
-             :dateInst localDate
+             ;:dateInst localDate
              :dateComm (clojure.string/join "-" [(matches 1) (matches 2) (matches 3)])
              :dateDisp (formatLocalDate localDate)
              :id (digest/md5 leafDir)
@@ -182,18 +203,111 @@
     )
   )
 
-(extractPathInfo "data" "2011/05/09/Going Fishing")
 
-(walk dataDir)
 
-(map (partial getRelativePath (file dataDir)) (walk dataDir))
-
-(remove nil? (map
-              (partial extractPathInfo dataDir)
-              (map (partial getRelativePath (file dataDir)) (walk dataDir)))
+(defn getAlbumsData [picturePath]
+  (remove nil? (map
+              (partial extractPathInfo picturePath)
+              (map (partial getRelativePath (file picturePath)) (walk picturePath)))
         )
+  )
 
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+(defn reconstructFilename [albumPath filename]
+  (str albumPath filename)
+  )
+
+(defn *generateThumbnailFile* [tmpDir dataDir thumbOrDisplay size fullDirPath filename modifiedTimestamp]
+  (let [
+        extractDimension (fn [ind] (get ((keyword size) ((keyword thumbOrDisplay) imgSizes)) ind))
+        width (extractDimension 0)
+        height (extractDimension 1)
+        thumbFilename (generateThumbnailFilename thumbOrDisplay size fullDirPath filename modifiedTimestamp )
+        originalFilename (str dataDir "/" fullDirPath "/" filename)
+        *createTmpDir*         (fn [dirname]
+                                 (let [f (java.io.File. dirname)]
+                                   (if
+                                     (not (.exists f))
+                                     (.mkdir f)
+                                     )
+                                   )
+                                 )
+        *writeFile* (fn [filename bufferedImage]
+                      (javax.imageio.ImageIO/write bufferedImage "jpg" (as-file filename))
+                      )
+        ]
+    (*createTmpDir* tmpDir)
+    (*writeFile* (str tmpDir "/" thumbFilename) (scale-image (loadImg originalFilename) width height))
+    thumbFilename
+    )
+  )
+
+(defn *prepareAlbumForDisplay* [tmpDir dataDir albumData]
+
+  (update-in
+   albumData
+   [:files]
+   (fn [files]
+     (map
+      (fn [fileRecord]
+        (let [
+              tmpFiles {
+                        :thumbs {
+                                 :small (*generateThumbnailFile* tmpDir dataDir "thumb" "small" (:albumPath albumData) (:filename fileRecord) (:modifiedTimestamp fileRecord))
+                                 :medium (*generateThumbnailFile*  tmpDir dataDir "thumb" "medium" (:albumPath albumData) (:filename fileRecord) (:modifiedTimestamp fileRecord))
+                                 :large (*generateThumbnailFile*  tmpDir dataDir "thumb" "large" (:albumPath albumData) (:filename fileRecord) (:modifiedTimestamp fileRecord))
+                                 }
+                        :display {
+                                  :small (*generateThumbnailFile*  tmpDir dataDir "display" "small" (:albumPath albumData) (:filename fileRecord) (:modifiedTimestamp fileRecord))
+                                  :medium (*generateThumbnailFile*  tmpDir dataDir "display" "medium" (:albumPath albumData) (:filename fileRecord) (:modifiedTimestamp fileRecord))
+                                  :large (*generateThumbnailFile*  tmpDir dataDir "display" "large" (:albumPath albumData) (:filename fileRecord) (:modifiedTimestamp fileRecord))
+                                  }
+                        }
+              ]
+
+          (conj fileRecord
+                {:tmpFiles tmpFiles}
+                )
+          )
+        )
+      files
+      )
+     )
+   )
+
+  )
+
+
+(let [
+      dataDir "data"
+      tmpDir "/tmp/h5gal"
+      ]
+
+  (map (partial *prepareAlbumForDisplay* tmpDir dataDir) (getAlbumsData dataDir))
+
+  (*prepareAlbumForDisplay* tmpDir dataDir (first (getAlbumsData dataDir)))
+
+  (parseDirectory "data" "2011/05/09/Going Fishing")
+
+  (map (partial getRelativePath (file "data")) (walk dataDir))
+
+  (extractPathInfo "data" "2011/05/09/Going Fishing")
+
+  (walk dataDir)
+
+  (generateThumbnailFilename "display" "small" "a/b" "bob.jpg" 34234)
+
+  )
+
+
+
+(defn -main [& args]
+  (let [[options args banner]
+        (cli/cli args
+                 ["--albumdir" "The location of your albums"]
+                 ["--tmpdir" "The location to generate thumbnails" :default "/tmp/h5gal"])]
+    (println "albumdir:" (:albumdir options))
+    (println "tmpdir:" (:tmpdir options))
+    ;(println (map (partial *prepareAlbumForDisplay* (:tmpdir options) (:albumdir options)) (getAlbumsData (:albumdir options))))
+    (println (json/write-str (map (partial *prepareAlbumForDisplay* (:tmpdir options) (:albumdir options)) (getAlbumsData (:albumdir options)))))
+    )
+  )
